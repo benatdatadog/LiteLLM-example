@@ -1,0 +1,3 @@
+# Minimal override for Docker Desktop hostname detection issues.
+hostname: datadog-agent-local
+hostname_trust_uts_namespace: true

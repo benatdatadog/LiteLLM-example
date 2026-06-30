@@ -1,0 +1,16 @@
+model_list:
+  - model_name: claude-opus-4-8
+    litellm_params:
+      model: anthropic/claude-opus-4-8
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  callbacks:
+    - prometheus
+    - datadog
+  service_callback:
+    - datadog
+  require_auth_for_metrics_endpoint: false

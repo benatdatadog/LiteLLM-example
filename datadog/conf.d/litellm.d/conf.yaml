@@ -1,0 +1,8 @@
+init_config:
+
+instances:
+  - openmetrics_endpoint: http://litellm-proxy:4000/metrics/
+    min_collection_interval: 15
+    tags:
+      - service:litellm-proxy
+      - env:dev
