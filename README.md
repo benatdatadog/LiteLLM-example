@@ -13,7 +13,7 @@ Minimal Python demo that calls [LiteLLM](https://docs.litellm.ai/) and sends tra
 
 1. [Enable LLM Observability](https://docs.datadoghq.com/llm_observability/) in your Datadog account
 2. Python 3.10+
-3. An LLM API key (`OPENAI_API_KEY` or `ANTHROPIC_API_KEY`)
+3. **AWS Bedrock** access — enable `anthropic.claude-3-5-haiku-20241022-v1:0` in your region and set `AWS_REGION_NAME` plus credentials (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`, or `~/.aws/credentials` via `AWS_PROFILE`)
 4. A Datadog API key (`DD_API_KEY`)
 
 ## Quick start
@@ -21,7 +21,7 @@ Minimal Python demo that calls [LiteLLM](https://docs.litellm.ai/) and sends tra
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.lock
 
 cp .env.example .env
 # Edit .env with your keys
@@ -38,7 +38,8 @@ export DD_SITE=datadoghq.com
 export DD_LLMOBS_ENABLED=1
 export DD_LLMOBS_ML_APP=litellm-demo
 export DD_LLMOBS_AGENTLESS_ENABLED=1
-export OPENAI_API_KEY=...
+export AWS_REGION_NAME=us-east-1
+# AWS credentials via env vars or ~/.aws/credentials
 
 ddtrace-run python app.py
 ```
@@ -131,7 +132,9 @@ docker network connect litellm-demo datadog-agent
 | `DD_API_KEY` | Datadog API key |
 | `DD_SITE` | Datadog site (e.g. `datadoghq.com`, `datadoghq.eu`) |
 | `DD_LLMOBS_ML_APP` | ML application name in Datadog |
-| `DEMO_MODEL` | LiteLLM model string (default: `gpt-4o-mini`) |
+| `DEMO_MODEL` | Proxy alias `bedrock-claude-haiku`, or full id `bedrock/anthropic.claude-3-5-haiku-20241022-v1:0` for direct SDK calls |
+| `AWS_REGION_NAME` | Bedrock region (default: `us-east-1`) |
+| `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS credentials (optional if using `~/.aws/credentials`) |
 | `DEMO_TEAM` | Team tag for usage/cost attribution |
 | `DEMO_USER_HANDLE` | User tag for session attribution |
 | `LITELLM_PROXY_URL` | Route calls through LiteLLM Proxy (e.g. `http://localhost:4000`) |

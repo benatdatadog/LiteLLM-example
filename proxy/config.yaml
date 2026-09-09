@@ -1,8 +1,8 @@
 model_list:
-  - model_name: claude-opus-4-8
+  - model_name: bedrock-claude-haiku
     litellm_params:
-      model: anthropic/claude-opus-4-8
-      api_key: os.environ/ANTHROPIC_API_KEY
+      model: bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0
+      aws_region_name: os.environ/AWS_REGION_NAME
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY

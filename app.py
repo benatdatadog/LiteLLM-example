@@ -19,7 +19,11 @@ from litellm import completion
 
 load_dotenv()
 
-MODEL = os.getenv("DEMO_MODEL", "gpt-4o-mini")
+MODEL = os.getenv("DEMO_MODEL", "bedrock-claude-haiku")
+BEDROCK_MODEL_ID = os.getenv(
+    "BEDROCK_MODEL_ID",
+    "bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+)
 TEAM = os.getenv("DEMO_TEAM", "platform-engineering")
 USER_HANDLE = os.getenv("DEMO_USER_HANDLE", "demo@example.com")
 MOCK_MODE = os.getenv("DEMO_MOCK", "").lower() in {"1", "true", "yes"}
@@ -40,14 +44,24 @@ MOCK_RESPONSES = {
 }
 
 
+def _has_aws_credentials() -> bool:
+    if os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"):
+        return True
+    if os.getenv("AWS_PROFILE"):
+        return True
+    return os.path.isfile(os.path.expanduser("~/.aws/credentials"))
+
+
 def _require_api_key() -> None:
-    if MOCK_MODE:
+    if MOCK_MODE or PROXY_URL:
         return
-    if os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY"):
+    if _has_aws_credentials():
         return
     print(
-        "Set OPENAI_API_KEY or ANTHROPIC_API_KEY in .env (see .env.example),\n"
-        "or set DEMO_MOCK=true to run without a provider (Datadog tracing still works).",
+        "Configure AWS credentials for Bedrock (see .env.example):\n"
+        "  AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY, or AWS_PROFILE + ~/.aws/credentials\n"
+        "Or set LITELLM_PROXY_URL so the proxy handles Bedrock auth.\n"
+        "Or set DEMO_MOCK=true to run without a provider (Datadog tracing still works).",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -64,6 +78,27 @@ def _require_datadog() -> None:
         file=sys.stderr,
     )
     sys.exit(1)
+
+
+def _build_completion_kwargs(messages: list[dict]) -> dict:
+    kwargs: dict = {"messages": messages}
+    if PROXY_URL:
+        # Proxy exposes an OpenAI-compatible API; model is the proxy alias.
+        kwargs.update(
+            {
+                "model": MODEL,
+                "api_base": PROXY_URL,
+                "api_key": PROXY_API_KEY,
+                "custom_llm_provider": "openai",
+            }
+        )
+        return kwargs
+
+    model = MODEL
+    if not model.startswith("bedrock/"):
+        model = BEDROCK_MODEL_ID if model in {"bedrock-claude-haiku", "bedrock-claude-sonnet"} else f"bedrock/{model}"
+    kwargs["model"] = model
+    return kwargs
 
 
 def run_customer_assistant(session_id: str, user_message: str) -> str:
@@ -84,10 +119,7 @@ def run_customer_assistant(session_id: str, user_message: str) -> str:
             {"role": "user", "content": user_message},
         ]
 
-        completion_kwargs: dict = {"model": MODEL, "messages": messages}
-        if PROXY_URL:
-            completion_kwargs["api_base"] = PROXY_URL
-            completion_kwargs["api_key"] = PROXY_API_KEY
+        completion_kwargs = _build_completion_kwargs(messages)
         if MOCK_MODE:
             completion_kwargs["mock_response"] = MOCK_RESPONSES.get(
                 user_message,
@@ -106,12 +138,16 @@ def run_customer_assistant(session_id: str, user_message: str) -> str:
                 response = completion(**completion_kwargs)
             except Exception as exc:
                 err = str(exc)
-                if "insufficient_quota" in err or "exceeded your current quota" in err:
+                if "AccessDeniedException" in err or "not authorized" in err.lower():
                     print(
-                        "\nOpenAI returned insufficient_quota — the key is valid but the "
-                        "account has no billing/quota.\n"
-                        "Fix: https://platform.openai.com/settings/organization/billing\n"
-                        "Or run with DEMO_MOCK=true to demo Datadog tracing without OpenAI.\n",
+                        "\nBedrock access denied — enable the model in your AWS account/region "
+                        "and confirm IAM permissions (bedrock:InvokeModel).\n",
+                        file=sys.stderr,
+                    )
+                elif "insufficient_quota" in err or "exceeded your current quota" in err:
+                    print(
+                        "\nProvider returned insufficient_quota — check billing/quota for the "
+                        "configured model.\n",
                         file=sys.stderr,
                     )
                 raise
